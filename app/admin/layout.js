@@ -1,4 +1,4 @@
-// app/admin/layout.js
+// AdminLayout.js
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,26 +6,33 @@ import { useRouter, usePathname } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import Cookies from "js-cookie";
 
 export default function AdminLayout({ children }) {
-  const [loading, setLoading] = useState(true);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [user, setUser] = useState(null);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user && pathname !== "/admin/login") {
-        router.push("/admin/login");
-      } else if (user && pathname === "/admin/login") {
-        router.push("/admin/dashboard");
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        Cookies.set("session", "true");
+        setUser(currentUser);
+      } else {
+        Cookies.remove("session");
+        if (pathname !== "/admin/login") {
+          router.push("/admin/login");
+        }
       }
-      setLoading(false);
+      setAuthChecked(true);
     });
 
     return () => unsubscribe();
-  }, [pathname]);
+  }, [pathname, router]);
 
-  if (loading) {
+  // Only show loading state while auth is being checked
+  if (!authChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
@@ -33,5 +40,9 @@ export default function AdminLayout({ children }) {
     );
   }
 
-  return <ProtectedRoute>{children}</ProtectedRoute>;
+  if (pathname === "/admin/login") {
+    return children;
+  }
+
+  return <ProtectedRoute user={user}>{children}</ProtectedRoute>;
 }
